@@ -1,26 +1,26 @@
 use crate::Divvy;
-use std::fmt::Debug;
 use std::iter::FusedIterator;
-use std::mem;
 use std::ops::Range;
+use std::mem;
 
-#[derive(Debug)]
-/// Created by calling [`Divvy::divvy`]on a [`Range`] of `u8`, `u16`, `u32`,
-/// `u64`, `usize`, or `u128`.
-pub struct ChunkedRange<T> {
-    range: Range<T>,
-    step: T,
-    threshold: T,
-}
-
-macro_rules! impl_unsigned {
-    ($($t:ty)+) => {
+macro_rules! impl_exclusive {
+    ($($(#[$m:meta])? $name:ident, $t:ty, $wide:ty)+) => {
         $(
-            impl Iterator for ChunkedRange<$t> {
+            $(#[$m])?
+            #[derive(Debug)]
+            #[doc = concat!("Created by calling [`divvy`](`Divvy::divvy`) on a [`Range<", stringify!($t),">`].")]
+            pub struct $name {
+                start: $wide,
+                end: $wide,
+                threshold: $wide,
+                step: $wide,
+            }
+            $(#[$m])?
+            impl Iterator for $name {
                 type Item = Range<$t>;
                 #[inline]
                 fn next(&mut self) -> Option<Self::Item> {
-                    let len = self.range.end - self.range.start;
+                    let len = self.end - self.start;
                     if len == 0 {
                         None
                     } else {
@@ -29,34 +29,49 @@ macro_rules! impl_unsigned {
                         } else {
                             self.step
                         };
-                        let ret = Range {
-                            start: self.range.start,
-                            end: self.range.start + step,
-                        };
-                        self.range.start += step;
+                        let ret = self.start as $t..(self.start + step) as $t;
+                        self.start += step;
                         Some(ret)
                     }
                 }
+                #[inline]
+                fn size_hint(&self) -> (usize, Option<usize>) {
+                    let len = self.end - self.start;
+                    let len = if len > self.threshold {
+                        let rem = len - self.threshold;
+                        let big = rem / (self.step + 1);
+                        big + self.threshold.checked_div(self.step).unwrap_or(0)
+                    } else {
+                        len.checked_div(self.step).unwrap_or(0)
+                    };
+                    if let Some(len) = usize::try_from(len).ok() {
+                        (len, Some(len))
+                    } else {
+                        (usize::MAX, None)
+                    }
+                }
             }
-
-            impl FusedIterator for ChunkedRange<$t> {}
-
+            $(#[$m])?
+            impl FusedIterator for $name {}
+            $(#[$m])?
             impl Divvy for Range<$t> {
                 type Chunk = Range<$t>;
-                type Output = ChunkedRange<$t>;
+                type Output = $name;
 
-                fn divvy(mut self, n: usize) -> Self::Output {
-                    let n = <$t>::try_from(n).expect(concat!("number of chunks must fit in a ", stringify!($t)));
+                fn divvy(self, n: usize) -> Self::Output {
+                    let n = <$t>::try_from(n).expect(concat!("number of chunks must fit in a ", stringify!($t))) as $wide;
                     assert_ne!(n, 0, "number of chunks must be nonzero");
-                    if self.start > self.end {
-                        mem::swap(&mut self.start, &mut self.end);
+                    let mut start = self.start as $wide;
+                    let mut end = self.end as $wide;
+                    if start > end {
+                        mem::swap(&mut start, &mut end);
                     }
-
-                    let t = self.end - self.start;
+                    let t = end - start;
                     let q = t / n;
                     let r = t % n;
-                    ChunkedRange {
-                        range: self,
+                    $name {
+                        start,
+                        end,
                         step: q,
                         threshold: t - r * (q + 1),
                     }
@@ -66,7 +81,25 @@ macro_rules! impl_unsigned {
     }
 }
 
-impl_unsigned! {u8 u16 u32 u64 u128 usize}
+impl_exclusive! {
+    ChunkedRangeU8, u8, u8
+    ChunkedRangeU16, u16, u16
+    ChunkedRangeU32, u32, u32
+    ChunkedRangeU64, u64, u64
+    ChunkedRangeUsize, usize, usize
+    ChunkedRangeU128, u128, u128
+    ChunkedRangeI8, i8, i16
+    ChunkedRangeI16, i16, i32
+    ChunkedRangeI32, i32, i64
+    ChunkedRangeI64, i64, i128
+    #[cfg(target_pointer_width = "64")]
+    ChunkedRangeIsize, isize, i128
+    #[cfg(target_pointer_width = "32")]
+    ChunkedRangeIsize, isize, i64
+    #[cfg(target_pointer_width = "16")]
+    ChunkedRangeIsize, isize, i32
+    // TODO: suport i128
+}
 
 #[cfg(test)]
 mod test {

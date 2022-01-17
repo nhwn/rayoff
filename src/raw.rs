@@ -1,7 +1,6 @@
 use std::cell::Cell;
 use std::iter::Map;
-use std::thread::Builder;
-use std::thread::JoinHandle;
+use std::thread::{Builder, JoinHandle};
 use std::vec::IntoIter;
 
 /// Wrapper type around the JoinGuard iterator to ensure it runs to completion,
@@ -66,11 +65,10 @@ impl<T: Send> Drop for JoinGuard<'_, T> {
     fn drop(&mut self) {
         // The handle will still be Some if:
         // 1. We don't exhaust the reducing iterator over the return values. NOTE: this
-        // alone    does not satisfy the invariant of joining each thread in
-        // this case, since Map is    lazy (we must explicitly run the iterator
-        // to completion). 2. We panicked during collection into a Vec inside
-        // spawn_unchecked().unwrap(). 3. One of the threads panicked during
-        // execution.
+        //    alone does not satisfy the invariant of joining each thread in this case, 
+        //    since Map is lazy (we must explicitly run the iterator to completion).
+        // 2. We panicked during collection into a Vec inside spawn_unchecked().unwrap().
+        // 3. One of the threads panicked during execution.
         if let Some(x) = self.handle.take() {
             let handle = x.join();
             // If we haven't panicked yet, then we won't have a double panic if we unwrap on

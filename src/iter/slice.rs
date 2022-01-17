@@ -4,6 +4,7 @@ use std::fmt::Debug;
 use std::mem::take;
 
 #[derive(Debug)]
+/// Created by calling [`divvy`](`Divvy::divvy`) on a slice.
 pub struct ChunkedSlice<'a, T> {
     slice: &'a [T],
     step: usize,
@@ -11,6 +12,7 @@ pub struct ChunkedSlice<'a, T> {
 }
 
 #[derive(Debug)]
+/// Created by calling [`divvy`](`Divvy::divvy`) on a mutable slice.
 pub struct ChunkedSliceMut<'a, T> {
     slice: &'a mut [T],
     step: usize,
@@ -31,7 +33,7 @@ fn slice_len(len: usize, step: usize, threshold: usize) -> usize {
 }
 
 impl<'a, T> ChunkedSlice<'a, T> {
-    pub fn new(slice: &'a [T], n: usize) -> Self {
+    fn new(slice: &'a [T], n: usize) -> Self {
         assert_ne!(n, 0, "number of chunks must be nonzero");
         let t = slice.len();
         let q = t / n;
@@ -42,7 +44,7 @@ impl<'a, T> ChunkedSlice<'a, T> {
             threshold: t - r * (q + 1),
         }
     }
-    pub fn len(&self) -> usize {
+    fn len(&self) -> usize {
         slice_len(self.slice.len(), self.step, self.threshold)
     }
 }
@@ -82,7 +84,7 @@ impl<'a, T> ExactSizeIterator for ChunkedSlice<'a, T> {
 impl<'a, T> FusedIterator for ChunkedSlice<'a, T> {}
 
 impl<'a, T> ChunkedSliceMut<'a, T> {
-    pub fn new(slice: &'a mut [T], n: usize) -> Self {
+    fn new(slice: &'a mut [T], n: usize) -> Self {
         assert_ne!(n, 0, "number of chunks must be nonzero");
         let t = slice.len();
         let q = t / n;
@@ -93,7 +95,7 @@ impl<'a, T> ChunkedSliceMut<'a, T> {
             threshold: t - r * (q + 1),
         }
     }
-    pub fn len(&self) -> usize {
+    fn len(&self) -> usize {
         slice_len(self.slice.len(), self.step, self.threshold)
     }
 }
@@ -120,7 +122,8 @@ impl<'a, T> Iterator for ChunkedSliceMut<'a, T> {
     }
     #[inline]
     fn size_hint(&self) -> (usize, Option<usize>) {
-        (self.len(), Some(self.len()))
+        let len = self.len();
+        (len, Some(len))
     }
 }
 

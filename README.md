@@ -1,11 +1,9 @@
-# Rayoff
-
 Similar to [rayon](https://docs.rs/rayon/latest/rayon/), `rayoff` equips iterators with additional
 functionality for introducing parallelism. However, instead of using a work-stealing stategy to 
 ensure threads don't starve for work, `rayoff` uses a simpler map-reduce stategy:
 
 1. Divvy up the iterator into chunks of roughly equal size (see
-[here](https://docs.rs/rayoff/0.0.1/rayoff/trait.Divvy.html#implementation-details)
+[here](https://docs.rs/rayoff/latest/rayoff/trait.Divvy.html#implementation-details)
 for implementation details).
 2. Map each chunk to its own thread.
 3. Reduce over the results of each thread's computation.
@@ -13,7 +11,7 @@ for implementation details).
 In almost all cases, [rayon](https://docs.rs/rayon/latest/rayon/) is the superior choice. However,
 if your computations won't benefit from work-stealing, then `rayoff` _may_
 give you better performance. Disclaimer: `rayoff` requires a nightly
-compiler (`rustc 1.59.0` as of this writing) and internally uses unsafe code. Use at your own risk!
+compiler (`rustc 1.60.0` as of this writing) and internally uses unsafe code. Use at your own risk!
 
 ## Example
 ```rust

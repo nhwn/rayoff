@@ -1,6 +1,5 @@
 [package]
 name = "rayoff"
-# don't forge to update the link in README.md when bumping
 version = "0.0.1"
 edition = "2021"
 license = "MIT OR Apache-2.0" 

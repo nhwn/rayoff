@@ -1,51 +1,12 @@
 #![forbid(missing_docs)]
 #![feature(thread_spawn_unchecked)]
 #![feature(slice_split_at_unchecked)]
-#![feature(available_parallelism)]
 
-//! Similar to [rayon](https://docs.rs/rayon/latest/rayon/), `rayoff` equips iterators with additional
-//! functionality for introducing parallelism. However, instead of using a work-stealing stategy to 
-//! ensure threads don't starve for work, `rayoff` uses a simpler map-reduce stategy:
-//!
-//! 1. Divvy up the iterator into chunks of roughly equal size (see
-//! [here](`crate::Divvy#implementation-details`) for implementation details).
-//! 2. Map each chunk to its own thread.
-//! 3. Reduce over the results of each thread's computation.
-//!
-//! In almost all cases, [rayon](https://docs.rs/rayon/latest/rayon/) is the superior choice. However,
-//! if your computations won't benefit from work-stealing, then `rayoff` _may_
-//! give you better performance. Disclaimer: `rayoff` requires a nightly
-//! compiler (`rustc 1.59.0` as of this writing) and internally uses unsafe code. Use at your own risk!
-//!
-//! # Example
-//! ```rust
-//! use rayoff::*;
-//!
-//! fn check(candidate: &[u8]) -> bool {
-//!     candidate == b"orange8"
-//! }
-//!
-//! let wordlist = ["apple", "orange", "pear", "banana"];
-//! let cracked_password = wordlist.divvy_cpus().find_map_any(|&word| {
-//!     let mut buf = [0u8; 8];
-//!     let len = word.len();
-//!     buf[..len].copy_from_slice(word.as_bytes());
-//!     for i in b'0'..=b'9' {
-//!         buf[len] = i;
-//!         let password = &buf[..len + 1];
-//!         if check(password) {
-//!             return Some(password.to_vec());
-//!         }
-//!     }
-//!     None
-//! });
-//!
-//! assert_eq!(cracked_password.unwrap(), b"orange8");
-//! ```
+#![doc = include_str!("../README.md")]
 
-mod range;
 mod raw;
-mod slice;
+/// Various chunked iterator types.
+pub mod iter;
 
 use raw::spawn_threads;
 use std::cell::Cell;
@@ -68,8 +29,8 @@ use std::thread::available_parallelism;
 ///     let r = t % n;
 ///     repeat(q + 1)
 ///         .take(r)
-///         .chain(repeat(q).take((t - r * (q +
-/// 1)).checked_div(q).unwrap_or(0))) }
+///         .chain(repeat(q).take((t - r * (q + 1)).checked_div(q).unwrap_or(0)))
+/// }
 /// ```
 /// This guarantees that the chunk sizes will differ by at most one. If `t < n`,
 /// then only `t` chunks of size `1` are produced. If `t == 0`, no chunks are
@@ -129,8 +90,7 @@ where
     ///
     /// # Example
     /// ```rust
-    /// use rayoff::*;
-    ///
+    /// # use rayoff::*;
     /// (0..1000usize).divvy_cpus().par_for_each(|x| {
     ///     if x.is_power_of_two() {
     ///         println!("{} is a power of 2", x);
@@ -155,28 +115,14 @@ where
     /// # Example
     ///
     /// ```rust
-    /// use rayoff::*;
+    /// # use rayoff::*;
+    /// let arr = ["one", "2", "three", "4", "5"];
+    /// let result = arr
+    ///     .divvy_cpus()
+    ///     .find_map_any(|x| x.parse::<usize>().ok())
+    ///     .unwrap();
     ///
-    /// fn check(candidate: &[u8]) -> bool {
-    ///     candidate == b"orange8"
-    /// }
-    ///
-    /// let wordlist: &[&[u8]] = &[b"apple", b"orange", b"pear", b"banana"];
-    /// let cracked_password = wordlist.divvy_cpus().find_map_any(|&word| {
-    ///     let mut buf = [0u8; 8];
-    ///     let len = word.len();
-    ///     buf[..len].copy_from_slice();
-    ///     for i in b'0'..=b'9' {
-    ///         buf[len] = i;
-    ///         let password = &buf[..len + 1];
-    ///         if check(password) {
-    ///             return Some(password.to_vec());
-    ///         }
-    ///     }
-    ///     None
-    /// });
-    ///
-    /// assert_eq!(cracked_password.unwrap(), b"orange8");
+    /// assert!(result == 2 || result == 3 || result == 4);
     /// ```
     fn find_map_any<F, U>(self, f: F) -> Option<U>
     where
@@ -218,7 +164,15 @@ where
     /// # Example
     ///
     /// ```rust
-    /// use rayoff::*;
+    /// # use rayoff::*;
+    /// let arr = ["one", "2", "three", "4", "5"];
+    /// let result = arr
+    ///     .divvy_cpus()
+    ///     .find_map_all(|x| x.parse::<usize>().ok());
+    ///
+    /// assert!(result.contains(&2));
+    /// assert!(result.contains(&4));
+    /// assert!(result.contains(&5));
     /// ```
     fn find_map_all<F, U>(self, f: F) -> Vec<U>
     where
@@ -244,8 +198,7 @@ where
     ///
     /// # Example
     /// ```rust
-    /// use rayoff::*;
-    ///
+    /// # use rayoff::*;
     /// let result = (0..1000usize)
     ///     .divvy_cpus()
     ///     .find_any(|x| x.is_power_of_two());
@@ -267,8 +220,7 @@ where
     ///
     /// # Example
     /// ```rust
-    /// use rayoff::*;
-    ///
+    /// # use rayoff::*;
     /// let result = (0..1000usize)
     ///     .divvy_cpus()
     ///     .find_all(|x| x.is_power_of_two());
@@ -287,8 +239,7 @@ where
     /// # Example
     ///
     /// ```rust
-    /// use rayoff::*;
-    ///
+    /// # use rayoff::*;
     /// let sum = (0..1000usize)
     ///     .divvy_cpus()
     ///     .map_reduce(|chunk| chunk.sum::<usize>(), 0usize, |acc, cur| acc + cur);
